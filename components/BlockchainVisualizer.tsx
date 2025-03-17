@@ -2,90 +2,17 @@
 
 import { motion } from 'framer-motion'
 import { useBlockchain } from '../contexts/BlockchainContext'
-import { useState } from 'react'
-import { ec as EC } from 'elliptic'
-import CryptoJS from 'crypto-js'
-
-// Initialize elliptic curve instance
-const ec = new EC('secp256k1')
-
-interface Transaction {
-  from: string
-  to: string
-  amount: number
-  timestamp: number
-  signature?: string
-  isVerified?: boolean
-  isValid?: boolean
-}
 
 export default function BlockchainVisualizer() {
   const {
     blockchain,
     pendingTransactions,
     difficulty,
-    updateTransaction,
     isMining,
     currentMiningBlock,
-    miningProgress
+    miningProgress,
+    miningStats
   } = useBlockchain()
-  const [processingTx, setProcessingTx] = useState<number | null>(null)
-
-  const handleSign = async (tx: Transaction, index: number) => {
-    setProcessingTx(index)
-    try {
-      // Simulate key generation (in real app, this would come from wallet)
-      const keyPair = ec.genKeyPair()
-      const privateKey = keyPair.getPrivate('hex')
-
-      // Create transaction hash
-      const txHash = CryptoJS.SHA256(JSON.stringify({
-        from: tx.from,
-        to: tx.to,
-        amount: tx.amount,
-        timestamp: tx.timestamp
-      })).toString()
-
-      // Sign transaction
-      const signature = keyPair.sign(txHash).toDER('hex')
-
-      // Update transaction with signature
-      const signedTx = { ...tx, signature }
-      updateTransaction(index, signedTx)
-    } catch (error) {
-      console.error('Error signing transaction:', error)
-    }
-    setProcessingTx(null)
-  }
-
-  const handleVerify = async (tx: Transaction, index: number) => {
-    setProcessingTx(index)
-    try {
-      // In a real app, we would verify against the actual public key
-      // Here we're just simulating the verification process
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate verification time
-
-      const verifiedTx = { ...tx, isVerified: true }
-      updateTransaction(index, verifiedTx)
-    } catch (error) {
-      console.error('Error verifying transaction:', error)
-    }
-    setProcessingTx(null)
-  }
-
-  const handleValidate = async (tx: Transaction, index: number) => {
-    setProcessingTx(index)
-    try {
-      // Validate transaction (check balance, format, etc.)
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate validation time
-
-      const validatedTx = { ...tx, isValid: true }
-      updateTransaction(index, validatedTx)
-    } catch (error) {
-      console.error('Error validating transaction:', error)
-    }
-    setProcessingTx(null)
-  }
 
   return (
     <div className="space-y-6">

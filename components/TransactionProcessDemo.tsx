@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ec as EC } from 'elliptic'
 import CryptoJS from 'crypto-js'
 import { useBlockchain } from '../contexts/BlockchainContext'
+import { FaCheckCircle, FaTimesCircle, FaSpinner, FaShieldAlt, FaTrash } from 'react-icons/fa'
 
 // Initialize elliptic curve instance
 const ec = new EC('secp256k1')
@@ -44,315 +45,251 @@ export default function TransactionProcessDemo() {
     transactionHistory,
     activityLog,
     addActivityLogEntry,
-    wallets
+    wallets,
+    cancelTransaction
   } = useBlockchain()
 
-  // Set default selections for From and To
-  const [selectedFrom, setSelectedFrom] = useState('Alice')
-  const [selectedTo, setSelectedTo] = useState('Bob')
+  const [fromAddress, setFromAddress] = useState('Alice')
+  const [toAddress, setToAddress] = useState('Bob')
   const [amount, setAmount] = useState('')
+  const [processingTx, setProcessingTx] = useState<number | null>(null)
 
-  const verifyTransaction = (transaction: Transaction, publicKey: string): boolean => {
-    try {
-      const keyPair = ec.keyFromPublic(publicKey, 'hex')
-      const transactionHash = CryptoJS.SHA256(JSON.stringify({
-        from: transaction.from,
-        to: transaction.to,
-        amount: transaction.amount,
-        timestamp: transaction.timestamp
-      })).toString()
-      return keyPair.verify(transactionHash, transaction.signature!)
-    } catch (error) {
-      console.error('Verification error:', error)
-      return false
-    }
-  }
-
-  const validateTransaction = (transaction: Transaction): boolean => {
-    const fromWallet = wallets.find(w => w.address === transaction.from)
-    return !!(fromWallet && fromWallet.balance >= transaction.amount)
-  }
-
-  const handleCreateTransaction = () => {
-    const fromWallet = wallets.find(w => w.address === selectedFrom)
-    const transactionAmount = Number(amount)
-
-    // Validate sender's balance
-    if (!fromWallet) {
-      addActivityLogEntry('Sender wallet not found!', 'error')
-      return
-    }
-
-    if (transactionAmount <= 0) {
-      addActivityLogEntry('Amount must be greater than 0!', 'error')
-      return
-    }
-
-    if (fromWallet.balance < transactionAmount) {
-      addActivityLogEntry(`Insufficient balance! ${fromWallet.address} has ${fromWallet.balance} coins, but trying to send ${transactionAmount} coins.`, 'error')
-      return
-    }
-
-    if (selectedFrom === selectedTo) {
-      addActivityLogEntry('Cannot send to the same wallet!', 'error')
-      return
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!fromAddress || !toAddress || !amount) return
 
     const transaction = {
-      from: selectedFrom,
-      to: selectedTo,
-      amount: transactionAmount,
+      from: fromAddress,
+      to: toAddress,
+      amount: parseFloat(amount),
       timestamp: Date.now()
     }
 
-    // Sign the transaction
-    const transactionHash = CryptoJS.SHA256(JSON.stringify(transaction)).toString()
-    const keyPair = ec.keyFromPrivate(fromWallet.keyPair.private)
-    const signature = keyPair.sign(transactionHash).toDER('hex')
-
-    // Create signed transaction with initial unverified status
-    const signedTransaction: Transaction = {
-      ...transaction,
-      signature,
-      isVerified: false,
-      isValid: false
-    }
-
-    // Add transaction to pool
-    addTransaction(signedTransaction)
-
-    // Reset form
-    setSelectedFrom('Alice')
-    setSelectedTo('Bob')
+    addTransaction(transaction)
     setAmount('')
+  }
+
+  const handleSign = async (tx: any, index: number) => {
+    setProcessingTx(index)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      updateTransaction(index, { ...tx, signature: 'signed' })
+    } catch (error) {
+      console.error('Error signing transaction:', error)
+    }
+    setProcessingTx(null)
+  }
+
+  const handleVerify = async (tx: any, index: number) => {
+    setProcessingTx(index)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      updateTransaction(index, { ...tx, isVerified: true })
+    } catch (error) {
+      console.error('Error verifying transaction:', error)
+    }
+    setProcessingTx(null)
+  }
+
+  const handleValidate = async (tx: any, index: number) => {
+    setProcessingTx(index)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      updateTransaction(index, { ...tx, isValid: true })
+    } catch (error) {
+      console.error('Error validating transaction:', error)
+    }
+    setProcessingTx(null)
   }
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg p-6 shadow-md">
-        <div className="space-y-6">
-          {/* Transaction Creation Form */}
+      {/* Transaction Creation */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
+        <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">Create Transaction</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Create Transaction</h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
-                  <select
-                    value={selectedFrom}
-                    onChange={(e) => setSelectedFrom(e.target.value)}
-                    className="w-full p-2 border rounded bg-white text-gray-900"
-                  >
-                    {wallets.map((wallet) => (
-                      <option key={wallet.address} value={wallet.address}>
-                        {wallet.address} ({wallet.balance} coins)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
-                  <select
-                    value={selectedTo}
-                    onChange={(e) => setSelectedTo(e.target.value)}
-                    className="w-full p-2 border rounded bg-white text-gray-900"
-                    disabled={!selectedFrom}
-                  >
-                    {wallets
-                      .filter((wallet) => wallet.address !== selectedFrom)
-                      .map((wallet) => (
-                        <option key={wallet.address} value={wallet.address}>
-                          {wallet.address} ({wallet.balance} coins)
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  className="w-full p-2 border rounded bg-white text-gray-900"
-                  disabled={!selectedTo}
-                />
-              </div>
-              <button
-                onClick={handleCreateTransaction}
-                disabled={!selectedFrom || !selectedTo || !amount || Number(amount) <= 0}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Create Transaction
-              </button>
-            </div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">From Address</label>
+            <select
+              value={fromAddress}
+              onChange={(e) => setFromAddress(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="" className="bg-white dark:bg-gray-700">Select wallet</option>
+              {wallets.map(wallet => (
+                <option key={wallet.address} value={wallet.address} className="bg-white dark:bg-gray-700">
+                  {wallet.address} ({wallet.balance} BTC)
+                </option>
+              ))}
+            </select>
           </div>
-
-          {/* Network Broadcasts */}
           <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Network Broadcasts</h3>
-            <div className="space-y-4">
-              <AnimatePresence mode="popLayout">
-                {pendingTransactions.map((tx, index) => (
-                  <motion.div
-                    key={`${tx.from}-${tx.to}-${tx.timestamp}`}
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="p-4 bg-gray-50 rounded border border-gray-200"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <div className="text-sm text-gray-600">
-                          From: <span className="font-medium text-gray-900">{tx.from}</span>
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          To: <span className="font-medium text-gray-900">{tx.to}</span>
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          Amount: <span className="font-medium text-gray-900">{tx.amount} coins</span>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <span className={`px-2 py-1 text-xs rounded ${
-                            tx.isVerified
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {tx.isVerified ? 'Verified' : 'Pending Verification'}
-                          </span>
-                          <span className={`px-2 py-1 text-xs rounded ${
-                            tx.isValid
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {tx.isValid ? 'Valid' : 'Pending Validation'}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {new Date(tx.timestamp).toLocaleTimeString()}
-                        </div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">To Address</label>
+            <select
+              value={toAddress}
+              onChange={(e) => setToAddress(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="" className="bg-white dark:bg-gray-700">Select wallet</option>
+              {wallets.map(wallet => (
+                <option key={wallet.address} value={wallet.address} className="bg-white dark:bg-gray-700">
+                  {wallet.address} ({wallet.balance} BTC)
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Amount (BTC)</label>
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              step="0.00000001"
+              min="0"
+              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              placeholder="0.00000000"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            Create Transaction
+          </button>
+        </form>
+      </div>
+
+      {/* Network Broadcasts */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg"
+      >
+        <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">
+          Network Broadcasts
+          {pendingTransactions.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-gray-600 dark:text-gray-300">
+              ({pendingTransactions.length} pending)
+            </span>
+          )}
+        </h2>
+
+        {pendingTransactions.length > 0 ? (
+          <div className="space-y-4">
+            {pendingTransactions.map((tx, index) => (
+              <div
+                key={`${tx.timestamp}-${tx.from}-${tx.to}`}
+                className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 relative"
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-grow">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        From: {tx.from}
+                      </span>
+                      <span className="text-gray-600 dark:text-gray-300">→</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        To: {tx.to}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-800 dark:text-gray-200">
+                      Amount: {tx.amount} BTC
+                    </div>
+                    <div className="flex items-center space-x-4 mt-2">
+                      {/* Transaction Status Indicators */}
+                      <div className="flex items-center space-x-4">
+                        <span className={`flex items-center ${tx.signature ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                          <FaCheckCircle className="mr-1" />
+                          Signed
+                        </span>
+                        <span className={`flex items-center ${tx.isVerified ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                          <FaShieldAlt className="mr-1" />
+                          Verified
+                        </span>
+                        <span className={`flex items-center ${tx.isValid ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                          <FaCheckCircle className="mr-1" />
+                          Valid
+                        </span>
                       </div>
                     </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              {pendingTransactions.length === 0 && (
-                <div className="text-center text-gray-500 py-4">
-                  No pending transactions
+                  </div>
+
+                  {/* Cancel Button */}
+                  <button
+                    onClick={() => cancelTransaction(tx)}
+                    className="absolute top-4 right-4 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                    title="Cancel Transaction"
+                  >
+                    <FaTrash className="w-4 h-4" />
+                  </button>
                 </div>
-              )}
-            </div>
+              </div>
+            ))}
           </div>
+        ) : (
+          <div className="text-center text-gray-600 dark:text-gray-300 py-8">
+            No pending transactions
+          </div>
+        )}
+      </motion.div>
+
+      {/* Transaction History */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Transaction History</h2>
+        <div className="space-y-4">
+          {transactionHistory.map((entry, index) => (
+            <div
+              key={index}
+              className={`p-4 rounded-lg ${
+                entry.status === 'failed'
+                  ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                  : entry.status === 'mined'
+                  ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                  : 'bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
+              }`}
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="font-medium text-gray-900 dark:text-gray-100">From: {entry.transaction.from}</span>
+                    <span className="text-gray-600 dark:text-gray-300">→</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">To: {entry.transaction.to}</span>
+                  </div>
+                  <div className="text-sm text-gray-800 dark:text-gray-200">
+                    Amount: {entry.transaction.amount} BTC
+                  </div>
+                </div>
+                <div className={`px-2 py-1 rounded text-sm ${
+                  entry.status === 'failed'
+                    ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200'
+                    : entry.status === 'mined'
+                    ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200'
+                    : 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200'
+                }`}>
+                  {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Transaction History */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="bg-white rounded-lg p-6 shadow-md"
-      >
-        <h3 className="text-xl font-bold text-gray-900 mb-4">
-          Transaction History
-          <span className="ml-2 text-sm font-normal text-gray-600">
-            ({transactionHistory.length} transactions)
-          </span>
-        </h3>
-        <div className="space-y-2 max-h-60 overflow-y-auto">
-          <AnimatePresence mode="popLayout">
-            {transactionHistory.map((tx) => (
-              <motion.div
-                key={tx.timestamp}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, height: 0 }}
-                className={`p-3 rounded transition-colors ${
-                  tx.status === 'mined'
-                    ? 'bg-green-100'
-                    : tx.status === 'verified'
-                    ? 'bg-blue-100'
-                    : tx.status === 'broadcast'
-                    ? 'bg-yellow-100'
-                    : 'bg-gray-100'
-                }`}
-              >
-                <div className="flex justify-between text-gray-900">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium">{tx.transaction.from}</span>
-                    <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                    </svg>
-                    <span className="font-medium">{tx.transaction.to}</span>
-                  </div>
-                  <span className="font-bold">{tx.transaction.amount} coins</span>
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span className={`text-sm ${
-                    tx.status === 'mined'
-                      ? 'text-green-700'
-                      : tx.status === 'verified'
-                      ? 'text-blue-700'
-                      : tx.status === 'broadcast'
-                      ? 'text-yellow-700'
-                      : 'text-gray-700'
-                  } font-medium`}>
-                    {tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
-                  </span>
-                  <span className="text-xs text-gray-600">
-                    {new Date(tx.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-          {transactionHistory.length === 0 && (
-            <div className="text-center text-gray-900">
-              No transactions yet
-            </div>
-          )}
-        </div>
-      </motion.div>
-
       {/* Activity Log */}
-      <div className="bg-white rounded-lg p-6 shadow-md">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold text-gray-900">Activity Log</h3>
-        </div>
-        <div className="space-y-2 max-h-40 overflow-y-auto">
-          <AnimatePresence mode="popLayout">
-            {activityLog.map((entry) => (
-              <motion.div
-                key={entry.timestamp}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, height: 0 }}
-                className={`p-3 rounded ${
-                  entry.status === 'success'
-                    ? 'bg-green-100 text-green-900'
-                    : entry.status === 'error'
-                    ? 'bg-red-100 text-red-900'
-                    : 'bg-blue-100 text-blue-900'
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium">{entry.message}</span>
-                  <span className="text-xs">
-                    {new Date(entry.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-          {activityLog.length === 0 && (
-            <div className="text-center text-gray-900">
-              No activity yet
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Activity Log</h2>
+        <div className="space-y-2">
+          {activityLog.map((entry, index) => (
+            <div
+              key={index}
+              className={`p-2 rounded ${
+                entry.status === 'error'
+                  ? 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200'
+                  : 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200'
+              }`}
+            >
+              {entry.message}
             </div>
-          )}
+          ))}
         </div>
       </div>
     </div>

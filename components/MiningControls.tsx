@@ -17,6 +17,8 @@ export default function MiningControls() {
     miners,
     currentMiner,
     setCurrentMiner,
+    errorMessage,
+    setErrorMessage,
   } = useBlockchain()
 
   // Determine if on mobile
@@ -54,7 +56,7 @@ export default function MiningControls() {
             <input
               type="range"
               min="2"
-              max="8"
+              max="10"
               value={difficulty}
               onChange={(e) => setDifficulty(Number(e.target.value))}
               className="w-full accent-blue-600"
@@ -62,11 +64,11 @@ export default function MiningControls() {
             <div className="flex flex-wrap justify-between text-sm text-gray-900 gap-2">
               <span>Easier (2)</span>
               <span className="font-medium text-blue-700">Current: {difficulty}</span>
-              <span>Harder (8)</span>
+              <span>Harder (10)</span>
             </div>
             <div className="text-sm text-gray-900">
               Target hash must start with {difficulty} zeros
-              {difficulty >= 6 && (
+              {difficulty >= 7 && (
                 <span className="block mt-1 text-red-700 font-medium">
                   (Warning: High difficulty may take longer to mine)
                 </span>

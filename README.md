@@ -2,6 +2,8 @@
 
 An interactive web application that demonstrates how cryptocurrency and blockchain technology work through animations and simulations. This application provides a hands-on learning experience for understanding blockchain concepts, cryptocurrency transactions, and mining processes.
 
+![Screenshot of Cryptocurrency Educational Demo app.](screenshot.jpg)
+
 ## Features
 
 ### Blockchain Visualization

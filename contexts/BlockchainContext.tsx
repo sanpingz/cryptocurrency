@@ -83,9 +83,12 @@ export interface BlockchainContextType {
   wallets: Wallet[]
   miners: Miner[]
   currentMiner: Miner
+  errorMessage: string
+  setErrorMessage: (message: string) => void
   addBlock: (block: Block) => void
   addTransaction: (transaction: Transaction) => void
   updateTransaction: (index: number, transaction: Transaction) => void
+  cancelTransaction: (transaction: Transaction) => void
   calculateHash: (block: Omit<Block, 'hash'>) => string
   setDifficulty: (difficulty: number) => void
   setMiningSpeed: (speed: number) => void
@@ -139,10 +142,11 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
   })
 
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([])
-  const [difficulty, setDifficulty] = useState(4)
+  const [difficulty, setDifficulty] = useState(5)
   const [isMining, setIsMining] = useState(false)
   const [currentMiningBlock, setCurrentMiningBlock] = useState<Block | null>(null)
   const [miningProgress, setMiningProgress] = useState(0)
+  const [errorMessage, setErrorMessage] = useState('')
   const workerRef = useRef<Worker | null>(null)
 
   const [miningStats, setMiningStats] = useState<MiningStats>({
@@ -291,20 +295,61 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
   }, [isMining, currentMiningBlock, difficulty])
 
   const startMining = (transactions: Transaction[]) => {
-    // Only mine transactions that are signed
-    const signedTransactions = transactions.filter(tx => tx.signature);
-
-    // Don't start mining if no signed transactions
-    if (signedTransactions.length === 0) {
-      console.warn('No signed transactions to mine');
-      return;
+    if (transactions.length === 0) {
+      setErrorMessage('No transactions to mine')
+      addActivityLogEntry('No transactions to mine', 'error')
+      return
     }
+
+    // First verify signatures for all transactions
+    const validTransactions = transactions.filter(tx => {
+      if (!tx.signature) {
+        setErrorMessage(`Transaction from ${tx.from} to ${tx.to} cannot be mined: missing signature`)
+        addActivityLogEntry(
+          `Transaction from ${tx.from} to ${tx.to} cannot be mined: missing signature`,
+          'error'
+        )
+        return false
+      }
+
+      const isSigned = verifyTransaction(tx)
+      if (!isSigned) {
+        setErrorMessage(`Transaction from ${tx.from} to ${tx.to} cannot be mined: invalid signature`)
+        addActivityLogEntry(
+          `Transaction from ${tx.from} to ${tx.to} cannot be mined: invalid signature`,
+          'error'
+        )
+        return false
+      }
+
+      // Validate the transaction
+      const isValid = validateTransaction(tx)
+      if (!isValid) {
+        setErrorMessage(`Transaction from ${tx.from} to ${tx.to} cannot be mined: insufficient balance`)
+        addActivityLogEntry(
+          `Transaction from ${tx.from} to ${tx.to} cannot be mined: insufficient balance`,
+          'error'
+        )
+        return false
+      }
+
+      return true
+    })
+
+    if (validTransactions.length === 0) {
+      setErrorMessage('No valid transactions to mine')
+      addActivityLogEntry('No valid transactions to mine', 'error')
+      return
+    }
+
+    // Clear any previous error messages when starting mining
+    setErrorMessage('')
 
     const lastBlock = blockchain[blockchain.length - 1]
     const newBlock: Block = {
       index: lastBlock.index + 1,
       timestamp: Date.now(),
-      transactions: signedTransactions,
+      transactions: validTransactions,
       previousHash: lastBlock.hash,
       hash: '',
       nonce: 0
@@ -313,6 +358,7 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     setCurrentMiningBlock(newBlock)
     setIsMining(true)
     setMiningProgress(0)
+    addActivityLogEntry(`Started mining block #${newBlock.index} with ${validTransactions.length} transactions`, 'success')
   }
 
   const verifyTransaction = (transaction: Transaction): boolean => {
@@ -335,40 +381,228 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
   }
 
   const validateTransaction = (transaction: Transaction): boolean => {
+    // First check if the transaction is properly signed
+    if (!transaction.signature || !verifyTransaction(transaction)) {
+      return false
+    }
+
     const fromWallet = wallets.find(w => w.address === transaction.from)
-    return !!(fromWallet && fromWallet.balance >= transaction.amount)
+    const toWallet = wallets.find(w => w.address === transaction.to)
+
+    // Basic checks
+    if (!fromWallet || !toWallet) return false
+    if (transaction.amount <= 0) return false
+
+    // Calculate total amount needed including fee
+    const fee = transaction.amount * transactionFeeRate
+    const totalAmount = transaction.amount + fee
+
+    // Check if sender has enough balance
+    return fromWallet.balance >= totalAmount
+  }
+
+  const addTransaction = (transaction: Transaction) => {
+    // Find sender's wallet and check balance
+    const fromWallet = wallets.find(w => w.address === transaction.from)
+    if (!fromWallet) {
+      setErrorMessage('Transaction creation failed: sender wallet not found')
+      addActivityLogEntry('Transaction creation failed: sender wallet not found', 'error')
+      return
+    }
+
+    // Calculate total amount needed including fee
+    const fee = transaction.amount * transactionFeeRate
+    const totalDebit = transaction.amount + fee
+
+    // Check if sender has sufficient balance
+    if (fromWallet.balance < totalDebit) {
+      setErrorMessage(`Transaction creation failed: insufficient balance (${fromWallet.balance} BTC available, ${totalDebit} BTC needed including ${fee.toFixed(8)} BTC fee)`)
+      addActivityLogEntry(
+        `Transaction creation failed: insufficient balance (${fromWallet.balance} BTC available, ${totalDebit} BTC needed including ${fee.toFixed(8)} BTC fee)`,
+        'error'
+      )
+      return
+    }
+
+    // Create transaction hash
+    const transactionHash = CryptoJS.SHA256(JSON.stringify({
+      from: transaction.from,
+      to: transaction.to,
+      amount: transaction.amount,
+      timestamp: transaction.timestamp
+    })).toString()
+
+    // Sign with sender's private key
+    const keyPair = ec.keyFromPrivate(fromWallet.keyPair.private)
+    const signature = keyPair.sign(transactionHash).toDER('hex')
+
+    // Add new transaction to pending with initial state
+    const newTransaction = {
+      ...transaction,
+      signature,
+      isVerified: false,
+      isValid: false
+    }
+
+    setPendingTransactions(prev => [...prev, newTransaction])
+
+    // Add to transaction history with 'created' status
+    setTransactionHistory(prev => [
+      {
+        transaction: newTransaction,
+        status: 'created',
+        timestamp: Date.now()
+      },
+      ...prev
+    ])
+
+    addActivityLogEntry(
+      `Transaction created and signed: ${transaction.amount} coins from ${transaction.from} to ${transaction.to}`,
+      'success'
+    )
+  }
+
+  const updateTransaction = (index: number, transaction: Transaction) => {
+    setPendingTransactions(prev => {
+      const updated = [...prev]
+      const currentTx = updated[index]
+
+      // Update signature status if provided
+      if (transaction.signature && transaction.signature !== currentTx.signature) {
+        const isSigned = verifyTransaction(transaction)
+        if (isSigned) {
+          addActivityLogEntry('Transaction signed successfully', 'success')
+        } else {
+          addActivityLogEntry('Transaction signature verification failed', 'error')
+        }
+        currentTx.signature = transaction.signature
+      }
+
+      // Update verification status if needed
+      if (transaction.isVerified !== undefined) {
+        const isValid = validateTransaction(transaction)
+        if (isValid) {
+          currentTx.isVerified = true
+          addActivityLogEntry('Transaction verified successfully', 'success')
+        } else {
+          currentTx.isVerified = false
+          addActivityLogEntry('Transaction verification failed: insufficient balance or invalid parameters', 'error')
+        }
+      }
+
+      // Keep valid status false until mined
+      currentTx.isValid = false
+
+      updated[index] = currentTx
+      return updated
+    })
+
+    // Update transaction history
+    setTransactionHistory(prev => {
+      const updated = [...prev]
+      const txIndex = updated.findIndex(
+        tx => tx.transaction.timestamp === transaction.timestamp &&
+             tx.transaction.from === transaction.from &&
+             tx.transaction.to === transaction.to
+      )
+
+      if (txIndex !== -1) {
+        let newStatus: TransactionStatus['status']
+        let message: string
+
+        if (!transaction.signature) {
+          newStatus = 'created'
+          message = 'Transaction created'
+        } else if (transaction.signature && verifyTransaction(transaction)) {
+          if (!validateTransaction(transaction)) {
+            newStatus = 'failed'
+            message = 'Transaction validation failed: insufficient balance or invalid parameters'
+            transaction.isVerified = false // Mark as verification failed
+          } else {
+            const fromWallet = wallets.find(w => w.address === transaction.from)
+            const fee = transaction.amount * transactionFeeRate
+            const totalDebit = transaction.amount + fee
+
+            // Double check if balance would be sufficient
+            if (fromWallet && fromWallet.balance >= totalDebit) {
+              newStatus = 'verified'
+              message = 'Transaction verified and ready for mining'
+            } else {
+              newStatus = 'failed'
+              message = 'Transaction verification failed: insufficient balance'
+              transaction.isVerified = false // Mark as verification failed
+            }
+          }
+        } else {
+          newStatus = 'failed'
+          message = 'Transaction signature verification failed'
+        }
+
+        updated[txIndex] = {
+          transaction: {
+            ...transaction,
+            isVerified: newStatus === 'verified',
+            isValid: false // Only set to true when mined
+          },
+          status: newStatus,
+          timestamp: Date.now()
+        }
+
+        addActivityLogEntry(message, newStatus === 'failed' ? 'error' : 'success')
+      }
+      return updated
+    })
   }
 
   const addBlock = (block: Block) => {
-    // Verify and validate all transactions in the block
-    const verifiedTransactions = block.transactions.map(tx => ({
-      ...tx,
-      isVerified: verifyTransaction(tx),
-      isValid: validateTransaction(tx)
-    }))
+    // First validate that all transactions in the block won't cause negative balances
+    const walletBalances = new Map(wallets.map(w => [w.address, w.balance]))
 
-    // Only include transactions that are both verified and valid
-    const confirmedTransactions = verifiedTransactions.filter(tx => tx.isVerified && tx.isValid)
+    // Check if any transaction would cause negative balance
+    for (const tx of block.transactions) {
+      const fromBalance = walletBalances.get(tx.from) || 0
+      const fee = tx.amount * transactionFeeRate
+      const totalDebit = tx.amount + fee
 
-    // Create the new block with confirmed transactions
+      if (fromBalance < totalDebit) {
+        setErrorMessage(`Cannot confirm block: transaction from ${tx.from} would cause negative balance`)
+        addActivityLogEntry(
+          `[Block ${block.index}] Cannot confirm block: transaction from ${tx.from} would cause negative balance`,
+          'error'
+        )
+        return // Exit without adding block
+      }
+
+      // Update temporary balance map
+      walletBalances.set(tx.from, fromBalance - totalDebit)
+      walletBalances.set(tx.to, (walletBalances.get(tx.to) || 0) + tx.amount)
+    }
+
+    // Create the new block
     const newBlock: Block = {
       ...block,
-      transactions: confirmedTransactions,
       hash: calculateHash(block)
     }
 
-    // Add the block to the blockchain
+    // Add the block to the blockchain first
     setBlockchain(prev => [...prev, newBlock])
 
-    // Update transaction history for all transactions
+    // Remove processed transactions from pending first
+    setPendingTransactions(prev =>
+      prev.filter(tx =>
+        !block.transactions.some(
+          processedTx =>
+            processedTx.timestamp === tx.timestamp &&
+            processedTx.from === tx.from &&
+            processedTx.to === tx.to
+        )
+      )
+    )
+
+    // Update transaction history
     setTransactionHistory(prev => {
       const updated = [...prev]
-      verifiedTransactions.forEach(tx => {
-        const status: TransactionStatus['status'] = tx.isVerified && tx.isValid ? 'mined' : 'failed'
-        const message = tx.isVerified && tx.isValid
-          ? `Transaction mined successfully`
-          : `Transaction failed: ${!tx.isVerified ? 'verification failed' : 'validation failed'}`
-
+      block.transactions.forEach(tx => {
         const txIndex = updated.findIndex(
           t => t.transaction.timestamp === tx.timestamp &&
                t.transaction.from === tx.from &&
@@ -377,25 +611,55 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
 
         if (txIndex !== -1) {
           updated[txIndex] = {
-            ...updated[txIndex],
-            status,
+            transaction: {
+              ...tx,
+              isVerified: true,
+              isValid: true
+            },
+            status: 'mined',
             timestamp: Date.now()
           }
         }
-
-        // Add activity log entry
-        addActivityLogEntry(message, status === 'mined' ? 'success' : 'error')
       })
       return updated
     })
 
-    // Update wallet balances only for confirmed transactions
-    updateWallets(confirmedTransactions)
+    // Update wallet balances in a separate operation
+    if (block.transactions.length > 0) {
+      const processedTxs = new Set()
 
-    // Clear all pending transactions
-    setPendingTransactions([])
+      setWallets(prevWallets => {
+        const updatedWallets = [...prevWallets]
 
-    // Calculate rewards
+        block.transactions.forEach(tx => {
+          const txId = `${tx.timestamp}-${tx.from}-${tx.to}`
+          if (processedTxs.has(txId)) {
+            return
+          }
+
+          const fromWallet = updatedWallets.find(w => w.address === tx.from)
+          const toWallet = updatedWallets.find(w => w.address === tx.to)
+
+          if (fromWallet && toWallet) {
+            const fee = tx.amount * transactionFeeRate
+            const totalDebit = tx.amount + fee
+
+            fromWallet.balance -= totalDebit
+            toWallet.balance += tx.amount
+            processedTxs.add(txId)
+
+            addActivityLogEntry(
+              `[Block ${block.index}] Transaction completed: ${tx.from} sent ${tx.amount} coins to ${tx.to} (+ ${fee.toFixed(8)} fee)`,
+              'success'
+            )
+          }
+        })
+
+        return updatedWallets
+      })
+    }
+
+    // Calculate and distribute mining rewards
     const fees = calculateTransactionFees(block.transactions)
     const totalReward = blockReward + fees
 
@@ -410,86 +674,14 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
       balance: prev.balance + totalReward
     }))
 
-    // Add success messages
-    addActivityLogEntry(`Block #${block.index} mined successfully!`, 'success')
-    addActivityLogEntry(
-      `Miner ${currentMiner.name} received ${blockReward} BTC block reward + ${fees.toFixed(8)} BTC in fees`,
-      'success'
-    )
-  }
-
-  const addTransaction = (transaction: Transaction) => {
-    // Add new transaction with verification flags set to false
-    setPendingTransactions(prev => [...prev, {
-      ...transaction,
-      isVerified: false,
-      isValid: false
-    }])
-
-    // Add to transaction history
-    setTransactionHistory(prev => [
-      {
-        transaction,
-        status: 'created',
-        timestamp: Date.now()
-      },
-      ...prev
-    ])
-
-    addActivityLogEntry('Transaction created and signed successfully!', 'success')
-  }
-
-  const updateTransaction = (index: number, transaction: Transaction) => {
-    setPendingTransactions(prev => {
-      const updated = [...prev]
-      updated[index] = {
-        ...updated[index],
-        ...transaction,
-        isVerified: transaction.isVerified ?? updated[index].isVerified,
-        isValid: transaction.isValid ?? updated[index].isValid
-      }
-      return updated
-    })
-
-    // Update transaction history status
-    if (transaction.isVerified && transaction.isValid) {
-      setTransactionHistory(prev => {
-        const updated = [...prev]
-        const txIndex = updated.findIndex(
-          tx => tx.transaction.timestamp === transaction.timestamp &&
-               tx.transaction.from === transaction.from &&
-               tx.transaction.to === transaction.to
-        )
-        if (txIndex !== -1) {
-          updated[txIndex] = {
-            ...updated[txIndex],
-            status: 'verified',
-            timestamp: Date.now()
-          }
-        }
-        return updated
-      })
-      addActivityLogEntry('Transaction verified successfully!', 'success')
+    // Add mining success messages
+    addActivityLogEntry(`[Block ${block.index}] Block mined successfully!`, 'success')
+    if (block.transactions.length > 0) {
+      addActivityLogEntry(
+        `[Block ${block.index}] Miner ${currentMiner.name} received ${blockReward} BTC block reward + ${fees.toFixed(8)} BTC in fees`,
+        'success'
+      )
     }
-  }
-
-  const updateWallets = (transactions: Transaction[]) => {
-    setWallets(prev => {
-      const updated = [...prev]
-      transactions.forEach(tx => {
-        const fromWallet = updated.find(w => w.address === tx.from)
-        const toWallet = updated.find(w => w.address === tx.to)
-        if (fromWallet) {
-          fromWallet.balance -= tx.amount
-          addActivityLogEntry(`${fromWallet.address} sent ${tx.amount} coins`, 'success')
-        }
-        if (toWallet) {
-          toWallet.balance += tx.amount
-          addActivityLogEntry(`${toWallet.address} received ${tx.amount} coins`, 'success')
-        }
-      })
-      return updated
-    })
   }
 
   const stopMining = () => {
@@ -593,6 +785,77 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const cancelTransaction = (transaction: Transaction) => {
+    // Check if transaction is in pending state and not in current mining block
+    const isInMining = currentMiningBlock?.transactions.some(
+      tx => tx.timestamp === transaction.timestamp &&
+           tx.from === transaction.from &&
+           tx.to === transaction.to
+    )
+
+    if (isInMining) {
+      addActivityLogEntry(
+        'Cannot cancel transaction: it is currently being mined',
+        'error'
+      )
+      return
+    }
+
+    // Remove from pending transactions
+    setPendingTransactions(prev =>
+      prev.filter(tx =>
+        !(tx.timestamp === transaction.timestamp &&
+          tx.from === transaction.from &&
+          tx.to === transaction.to)
+      )
+    )
+
+    // Update transaction history
+    setTransactionHistory(prev => {
+      const updated = [...prev]
+      const txIndex = updated.findIndex(
+        tx => tx.transaction.timestamp === transaction.timestamp &&
+             tx.transaction.from === transaction.from &&
+             tx.transaction.to === transaction.to
+      )
+
+      if (txIndex !== -1) {
+        updated[txIndex] = {
+          transaction: {
+            ...transaction,
+            isVerified: false,
+            isValid: false
+          },
+          status: 'failed',
+          timestamp: Date.now()
+        }
+      }
+      return updated
+    })
+
+    addActivityLogEntry(
+      `Transaction cancelled: ${transaction.amount} coins from ${transaction.from} to ${transaction.to}`,
+      'success'
+    )
+
+    // Stop mining if no valid transactions left
+    const remainingValidTransactions = pendingTransactions.filter(tx =>
+      tx.timestamp !== transaction.timestamp &&
+      tx.isVerified &&
+      validateTransaction(tx)
+    )
+
+    if (remainingValidTransactions.length === 0) {
+      stopMining()
+      addActivityLogEntry('Mining stopped: no valid transactions remaining', 'success')
+    }
+  }
+
+  const updateWallets = (transactions: Transaction[]) => {
+    // This function is now a no-op as all wallet updates happen automatically when blocks are mined
+    console.warn('updateWallets is deprecated - wallet updates now happen automatically when blocks are mined')
+  }
+
   const value = {
     blockchain,
     pendingTransactions,
@@ -607,9 +870,12 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     wallets,
     miners,
     currentMiner,
+    errorMessage,
+    setErrorMessage,
     addBlock,
     addTransaction,
     updateTransaction,
+    cancelTransaction,
     calculateHash,
     setDifficulty,
     setMiningSpeed,
