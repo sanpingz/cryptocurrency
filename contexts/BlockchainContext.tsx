@@ -59,6 +59,16 @@ interface Wallet {
   }
 }
 
+interface Miner {
+  name: string
+  address: string
+  balance: number
+  keyPair: {
+    private: string
+    public: string
+  }
+}
+
 export interface BlockchainContextType {
   blockchain: Block[]
   pendingTransactions: Transaction[]
@@ -71,6 +81,8 @@ export interface BlockchainContextType {
   transactionHistory: TransactionStatus[]
   activityLog: ActivityLogEntry[]
   wallets: Wallet[]
+  miners: Miner[]
+  currentMiner: Miner
   addBlock: (block: Block) => void
   addTransaction: (transaction: Transaction) => void
   updateTransaction: (index: number, transaction: Transaction) => void
@@ -84,6 +96,14 @@ export interface BlockchainContextType {
   addActivityLogEntry: (message: string, status: 'success' | 'error' | null) => void
   addWallet: (name: string, initialBalance?: number) => void
   removeWallet: (address: string) => void
+  addMiner: (name: string) => void
+  removeMiner: (address: string) => void
+  setCurrentMiner: (address: string) => void
+  blockReward: number
+  transactionFeeRate: number
+  setBlockReward: (reward: number) => void
+  setTransactionFeeRate: (rate: number) => void
+  calculateTransactionFees: (transactions: Transaction[]) => number
 }
 
 const BlockchainContext = createContext<BlockchainContextType | undefined>(undefined)
@@ -150,6 +170,22 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     })
   })
 
+  const [miners, setMiners] = useState<Miner[]>(() => {
+    // Initialize with Jarvis as default miner
+    const keyPair = ec.genKeyPair()
+    return [{
+      name: 'Jarvis',
+      address: 'Jarvis',
+      balance: 0,
+      keyPair: {
+        private: keyPair.getPrivate('hex'),
+        public: keyPair.getPublic('hex')
+      }
+    }]
+  })
+
+  const [currentMiner, setCurrentMiner] = useState<Miner>(() => miners[0])
+
   // Keep track of mining session
   const miningSessionRef = useRef<{
     block: Block | null;
@@ -162,6 +198,13 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     totalHashes: 0,
     recentHashes: []
   });
+
+  const [blockReward, setBlockReward] = useState(3.125) // Default block reward: 3.125 BTC
+  const [transactionFeeRate, setTransactionFeeRate] = useState(0.001) // Default fee rate: 0.1%
+
+  const calculateTransactionFees = (transactions: Transaction[]): number => {
+    return transactions.reduce((total, tx) => total + (tx.amount * transactionFeeRate), 0)
+  }
 
   // Initialize or reinitialize the worker
   const initializeWorker = (block: Block) => {
@@ -352,8 +395,27 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     // Clear all pending transactions
     setPendingTransactions([])
 
-    // Add success message for block
+    // Calculate rewards
+    const fees = calculateTransactionFees(block.transactions)
+    const totalReward = blockReward + fees
+
+    setMiners(prev => prev.map(miner =>
+      miner.address === currentMiner.address
+        ? { ...miner, balance: miner.balance + totalReward }
+        : miner
+    ))
+
+    setCurrentMiner(prev => ({
+      ...prev,
+      balance: prev.balance + totalReward
+    }))
+
+    // Add success messages
     addActivityLogEntry(`Block #${block.index} mined successfully!`, 'success')
+    addActivityLogEntry(
+      `Miner ${currentMiner.name} received ${blockReward} BTC block reward + ${fees.toFixed(8)} BTC in fees`,
+      'success'
+    )
   }
 
   const addTransaction = (transaction: Transaction) => {
@@ -495,6 +557,42 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     addActivityLogEntry(`Wallet "${address}" removed successfully!`, 'success')
   }
 
+  const addMiner = (name: string) => {
+    const keyPair = ec.genKeyPair()
+    const newMiner: Miner = {
+      name,
+      address: name,
+      balance: 0,
+      keyPair: {
+        private: keyPair.getPrivate('hex'),
+        public: keyPair.getPublic('hex')
+      }
+    }
+    setMiners(prev => [...prev, newMiner])
+    addActivityLogEntry(`Added new miner: ${name}`, 'success')
+  }
+
+  const removeMiner = (address: string) => {
+    if (miners.length === 1) {
+      addActivityLogEntry('Cannot remove the last miner', 'error')
+      return
+    }
+    if (currentMiner.address === address) {
+      const remainingMiners = miners.filter(m => m.address !== address)
+      setCurrentMiner(remainingMiners[0])
+    }
+    setMiners(prev => prev.filter(m => m.address !== address))
+    addActivityLogEntry(`Removed miner: ${address}`, 'success')
+  }
+
+  const handleMinerChange = (address: string) => {
+    const miner = miners.find(m => m.address === address)
+    if (miner) {
+      setCurrentMiner(miner)
+      addActivityLogEntry(`Switched to miner: ${miner.name}`, 'success')
+    }
+  }
+
   const value = {
     blockchain,
     pendingTransactions,
@@ -507,6 +605,8 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     transactionHistory,
     activityLog,
     wallets,
+    miners,
+    currentMiner,
     addBlock,
     addTransaction,
     updateTransaction,
@@ -519,7 +619,15 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     setMiningProgress,
     addActivityLogEntry,
     addWallet,
-    removeWallet
+    removeWallet,
+    addMiner,
+    removeMiner,
+    setCurrentMiner: handleMinerChange,
+    blockReward,
+    transactionFeeRate,
+    setBlockReward,
+    setTransactionFeeRate,
+    calculateTransactionFees
   }
 
   return (

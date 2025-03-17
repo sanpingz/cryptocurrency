@@ -19,6 +19,22 @@ An interactive web application that demonstrates how cryptocurrency and blockcha
   - Total hashes computed
   - Recent successful hashes
 - Background mining process that continues across UI interactions
+- Configurable mining rewards:
+  - Adjustable block reward (default: 3.125 BTC)
+  - Customizable transaction fee rate
+  - Real-time reward calculations
+
+### Miner Management
+
+- Multiple miner support with unique identities
+- Default miner (Jarvis) pre-configured
+- Easy miner creation and removal
+- Individual balance tracking for each miner
+- Miner switching during mining operations
+- Automatic reward distribution:
+  - Block rewards
+  - Transaction fees
+- Balance history for mining rewards
 
 ### Transaction Management
 
@@ -26,6 +42,7 @@ An interactive web application that demonstrates how cryptocurrency and blockcha
 - Automatic transaction verification and inclusion in blocks
 - Visual representation of transaction status (pending, confirmed, failed)
 - Transaction history tracking
+- Transaction fees contribute to miner rewards
 
 ### Wallet Management
 
@@ -108,6 +125,7 @@ The application is built with a modular architecture:
 - `BlockchainContext`: Central state management for blockchain operations
 - `MiningWorker`: Background process for mining operations
 - `WalletManager`: Wallet creation and management interface
+- `MinersManager`: Miner creation and management interface
 - `TransactionProcessDemo`: Transaction creation and monitoring
 - `BlockchainVisualizer`: Visual representation of the blockchain
 
@@ -134,6 +152,8 @@ This demo helps users understand:
 - Public/private key cryptography
 - Transaction verification and confirmation
 - Wallet management and balance tracking
+- Mining rewards and fee distribution
+- Role of miners in blockchain networks
 
 ## Contributing
 

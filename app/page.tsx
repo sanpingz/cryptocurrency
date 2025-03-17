@@ -7,10 +7,11 @@ import MiningControls from '@/components/MiningControls'
 import MiningStats from '@/components/MiningStats'
 import TransactionProcessDemo from '@/components/TransactionProcessDemo'
 import WalletManager from '@/components/WalletManager'
+import MinersManager from '@/components/MinersManager'
 import { BlockchainProvider } from '@/contexts/BlockchainContext'
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'wallets' | 'transactions' | 'mining'>('wallets')
+  const [activeTab, setActiveTab] = useState<'wallets' | 'transactions' | 'mining' | 'miners'>('wallets')
 
   return (
     <BlockchainProvider>
@@ -62,6 +63,16 @@ export default function Home() {
               >
                 Mining
               </button>
+              <button
+                onClick={() => setActiveTab('miners')}
+                className={`flex-1 px-6 py-3 text-lg font-medium transition-colors ${
+                  activeTab === 'miners'
+                    ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Miners
+              </button>
             </div>
 
             <div className="p-6">
@@ -86,7 +97,7 @@ export default function Home() {
                   >
                     <TransactionProcessDemo />
                   </motion.div>
-                ) : (
+                ) : activeTab === 'mining' ? (
                   <motion.div
                     key="mining"
                     initial={{ opacity: 0, y: 20 }}
@@ -96,9 +107,23 @@ export default function Home() {
                   >
                     <MiningStats />
                   </motion.div>
+                ) : (
+                  <motion.div
+                    key="miners"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <MinersManager />
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>
+          </div>
+
+          <div className="text-center text-sm text-gray-500 mt-12 mb-6">
+            <p>Author: Calvin <span className="mx-2">•</span> Version 1.0.0</p>
           </div>
         </motion.div>
       </main>
