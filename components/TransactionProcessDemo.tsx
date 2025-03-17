@@ -47,8 +47,9 @@ export default function TransactionProcessDemo() {
     wallets
   } = useBlockchain()
 
-  const [selectedFrom, setSelectedFrom] = useState('')
-  const [selectedTo, setSelectedTo] = useState('')
+  // Set default selections for From and To
+  const [selectedFrom, setSelectedFrom] = useState('Alice')
+  const [selectedTo, setSelectedTo] = useState('Bob')
   const [amount, setAmount] = useState('')
 
   const verifyTransaction = (transaction: Transaction, publicKey: string): boolean => {
@@ -121,8 +122,8 @@ export default function TransactionProcessDemo() {
     addTransaction(signedTransaction)
 
     // Reset form
-    setSelectedFrom('')
-    setSelectedTo('')
+    setSelectedFrom('Alice')
+    setSelectedTo('Bob')
     setAmount('')
   }
 
@@ -142,7 +143,6 @@ export default function TransactionProcessDemo() {
                     onChange={(e) => setSelectedFrom(e.target.value)}
                     className="w-full p-2 border rounded bg-white text-gray-900"
                   >
-                    <option value="">Select sender</option>
                     {wallets.map((wallet) => (
                       <option key={wallet.address} value={wallet.address}>
                         {wallet.address} ({wallet.balance} coins)
@@ -158,7 +158,6 @@ export default function TransactionProcessDemo() {
                     className="w-full p-2 border rounded bg-white text-gray-900"
                     disabled={!selectedFrom}
                   >
-                    <option value="">Select receiver</option>
                     {wallets
                       .filter((wallet) => wallet.address !== selectedFrom)
                       .map((wallet) => (
@@ -192,9 +191,9 @@ export default function TransactionProcessDemo() {
             </div>
           </div>
 
-          {/* Transaction Pool */}
+          {/* Network Broadcasts */}
           <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Transaction Pool</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Network Broadcasts</h3>
             <div className="space-y-4">
               <AnimatePresence mode="popLayout">
                 {pendingTransactions.map((tx, index) => (

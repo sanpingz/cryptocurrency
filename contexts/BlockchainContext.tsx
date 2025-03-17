@@ -156,8 +156,8 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
   const [transactionHistory, setTransactionHistory] = useState<TransactionStatus[]>([])
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([])
   const [wallets, setWallets] = useState<Wallet[]>(() => {
-    // Initialize with Alice and Bob as default wallets
-    return ['Alice', 'Bob'].map(name => {
+    // Initialize with Alice, Bob, and Mark as default wallets
+    return ['Alice', 'Bob', 'Mark'].map(name => {
       const keyPair = ec.genKeyPair()
       return {
         address: name,

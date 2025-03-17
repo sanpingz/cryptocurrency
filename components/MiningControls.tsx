@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useBlockchain } from '../contexts/BlockchainContext'
 
 export default function MiningControls() {
@@ -17,34 +17,40 @@ export default function MiningControls() {
     miners,
     currentMiner,
     setCurrentMiner,
-    blockReward,
-    transactionFeeRate,
-    setBlockReward,
-    setTransactionFeeRate,
-    calculateTransactionFees
   } = useBlockchain()
 
-  const [isEditingRewards, setIsEditingRewards] = useState(false)
-  const [tempBlockReward, setTempBlockReward] = useState(blockReward)
-  const [tempFeeRate, setTempFeeRate] = useState(transactionFeeRate * 100) // Convert to percentage for display
+  // Determine if on mobile
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
-  const handleSaveRewards = () => {
-    setBlockReward(tempBlockReward)
-    setTransactionFeeRate(tempFeeRate / 100) // Convert back to decimal
-    setIsEditingRewards(false)
-  }
-
-  const estimatedFees = calculateTransactionFees(pendingTransactions)
+  const patternLength = isMobile ? 32 : 64
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold mb-4 text-gray-900">Mining Control</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+        <h2 className="text-2xl font-bold text-gray-900">Mining Control</h2>
+        <button
+          onClick={isMining ? stopMining : () => startMining(pendingTransactions)}
+          disabled={pendingTransactions.length === 0}
+          className={`w-full sm:w-auto px-4 py-2 rounded ${
+            isMining ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+          } text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap`}
+        >
+          {isMining ? 'Stop Mining' : 'Start Mining'}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3 rounded shadow-sm">
+          <label className="block text-sm font-medium text-gray-900 mb-1.5">
             Target Difficulty
           </label>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <input
               type="range"
               min="2"
@@ -53,7 +59,7 @@ export default function MiningControls() {
               onChange={(e) => setDifficulty(Number(e.target.value))}
               className="w-full accent-blue-600"
             />
-            <div className="flex justify-between text-sm text-gray-900">
+            <div className="flex flex-wrap justify-between text-sm text-gray-900 gap-2">
               <span>Easier (2)</span>
               <span className="font-medium text-blue-700">Current: {difficulty}</span>
               <span>Harder (8)</span>
@@ -61,18 +67,19 @@ export default function MiningControls() {
             <div className="text-sm text-gray-900">
               Target hash must start with {difficulty} zeros
               {difficulty >= 6 && (
-                <span className="ml-2 text-red-700 font-medium">
+                <span className="block mt-1 text-red-700 font-medium">
                   (Warning: High difficulty may take longer to mine)
                 </span>
               )}
             </div>
           </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
+
+        <div className="bg-gradient-to-br from-emerald-50 to-blue-50 p-3 rounded shadow-sm">
+          <label className="block text-sm font-medium text-gray-900 mb-1.5">
             Mining Speed
           </label>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <input
               type="range"
               min="0"
@@ -81,7 +88,7 @@ export default function MiningControls() {
               onChange={(e) => setMiningSpeed(Number(e.target.value))}
               className="w-full accent-blue-600"
             />
-            <div className="flex justify-between text-sm text-gray-900">
+            <div className="flex flex-wrap justify-between text-sm text-gray-900 gap-2">
               <span>Fastest</span>
               <span className="font-medium text-blue-700">
                 {miningSpeed === 0 ? 'Max Speed' : `${miningSpeed}ms delay`}
@@ -93,14 +100,15 @@ export default function MiningControls() {
             </div>
           </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
+
+        <div className="bg-gradient-to-br from-violet-50 to-purple-50 p-3 rounded shadow-sm">
+          <label className="block text-sm font-medium text-gray-900 mb-1.5">
             Current Miner
           </label>
           <select
             value={currentMiner.address}
             onChange={(e) => setCurrentMiner(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+            className="w-full p-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
           >
             {miners.map((miner) => (
               <option
@@ -115,113 +123,42 @@ export default function MiningControls() {
         </div>
       </div>
 
-      <div className="flex justify-between items-center bg-gray-100 p-4 rounded">
-        <div className="text-gray-900">
-          <div className="font-semibold mb-1">Mining Rewards</div>
-          <div className="space-y-1">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-28 mb-2">
-              <div className="md:max-w-[260px]">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Block Reward:</span>
-                  {isEditingRewards ? (
-                    <input
-                      type="number"
-                      value={tempBlockReward}
-                      onChange={(e) => setTempBlockReward(Math.max(0, Number(e.target.value)))}
-                      className="w-32 px-2 py-0.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 font-mono"
-                      min="0"
-                      step="0.5"
-                    />
-                  ) : (
-                    <span className="font-mono">{blockReward} BTC</span>
-                  )}
-                </div>
+      {/* Mining Status Section */}
+      <div className="bg-gradient-to-br from-sky-50 to-blue-50 p-3 rounded shadow-sm">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+          <div className="text-gray-900 flex-grow w-full">
+            <div className="font-semibold mb-1.5">Mining Status</div>
+            <div className="space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-gray-900">Pending Transactions:</span>
+                <span className="font-mono text-gray-900">{pendingTransactions.length}</span>
               </div>
-
-              <div className="md:max-w-[380px] md:ml-auto">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 shrink-0">Transaction Fee Rate:</span>
-                  <div className="min-w-[160px] text-right">
-                    {isEditingRewards ? (
-                      <div className="flex items-center justify-end gap-1">
-                        <input
-                          type="number"
-                          value={tempFeeRate}
-                          onChange={(e) => setTempFeeRate(Math.max(0, Math.min(100, Number(e.target.value))))}
-                          className="w-28 px-2 py-0.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 font-mono text-right"
-                          min="0"
-                          max="100"
-                          step="0.1"
-                        />
-                        <span className="text-gray-600 w-4">%</span>
-                      </div>
-                    ) : (
-                      <span className="font-mono">{(transactionFeeRate * 100).toFixed(2)}%</span>
-                    )}
-                  </div>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-gray-900">Target Pattern:</span>
+                <span className="font-mono text-gray-900 break-all">
+                  {'0'.repeat(difficulty) + 'x'.repeat(patternLength - difficulty)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-900">Current Block:</span>
+                <span className="font-mono text-gray-900">#{blockchain.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-900">Current Miner Balance:</span>
+                <span className="font-mono text-gray-900">{currentMiner.balance.toFixed(8)} BTC</span>
               </div>
             </div>
-
-            <div className="flex justify-between">
-              <span className="text-gray-600">Base Reward:</span>
-              <span className="font-mono">{blockReward} BTC</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Estimated Fees:</span>
-              <span className="font-mono">{estimatedFees.toFixed(8)} BTC</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Total Potential Reward:</span>
-              <span className="font-mono">{(blockReward + estimatedFees).toFixed(8)} BTC</span>
-            </div>
           </div>
+          {isMining && (
+            <div className="flex items-center text-blue-600 sm:ml-4">
+              <svg className="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Mining in Progress
+            </div>
+          )}
         </div>
-        <button
-          onClick={() => isEditingRewards ? handleSaveRewards() : setIsEditingRewards(true)}
-          className={`px-6 py-3 rounded-lg ml-4 ${
-            isEditingRewards
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-blue-600 hover:bg-blue-700'
-          } text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap`}
-        >
-          {isEditingRewards ? 'Save Changes' : 'Edit Rewards'}
-        </button>
-      </div>
-
-      <div className="flex justify-between items-center bg-gray-100 p-4 rounded">
-        <div className="text-gray-900">
-          <div className="font-semibold mb-1">Mining Status</div>
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Pending Transactions:</span>
-              <span className="font-mono">{pendingTransactions.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Target Pattern:</span>
-              <span className="font-mono">{'0'.repeat(difficulty) + 'x'.repeat(64 - difficulty)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Current Block:</span>
-              <span className="font-mono">#{blockchain.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Current Miner Balance:</span>
-              <span className="font-mono">{currentMiner.balance.toFixed(8)} BTC</span>
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={isMining ? stopMining : () => startMining(pendingTransactions)}
-          disabled={pendingTransactions.length === 0}
-          className={`px-6 py-3 rounded-lg ml-4 ${
-            isMining
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-blue-600 hover:bg-blue-700'
-          } text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap`}
-        >
-          {isMining ? 'Stop Mining' : 'Start Mining'}
-        </button>
       </div>
     </div>
   )
