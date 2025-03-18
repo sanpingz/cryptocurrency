@@ -15,7 +15,7 @@ export default function MiningStats() {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg p-6 shadow-md">
-        <h2 className="text-2xl font-bold mb-4 text-gray-900">Mining Statistics</h2>
+        <h2 className="text-xl font-bold mb-4 text-gray-900">Mining Statistics</h2>
         <div className="grid grid-cols-2 gap-4">
           <motion.div
             className="p-4 bg-gray-100 rounded"

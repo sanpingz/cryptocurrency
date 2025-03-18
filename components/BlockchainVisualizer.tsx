@@ -22,35 +22,33 @@ export default function BlockchainVisualizer() {
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">{blockchain.length}</div>
-                <div className="text-sm text-gray-600">Chain Height</div>
+                <div className="text-xl font-bold text-gray-900">{blockchain.length}</div>
+                <div className="text-xs text-gray-600">Chain Height</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">{difficulty}</div>
-                <div className="text-sm text-gray-600">Mining Difficulty</div>
+                <div className="text-xl font-bold text-gray-900">{difficulty}</div>
+                <div className="text-xs text-gray-600">Mining Difficulty</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">{pendingTransactions.length}</div>
-                <div className="text-sm text-gray-600">Pending Tx</div>
+                <div className="text-xl font-bold text-gray-900">{pendingTransactions.length}</div>
+                <div className="text-xs text-gray-600">Pending Tx</div>
               </div>
             </div>
-            <div className="bg-gray-100 px-4 py-2 rounded flex items-center space-x-4">
-              <div className="space-y-1 text-sm">
-                <div className="flex items-center text-green-600">
-                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Chain Verified
-                </div>
+            <div className="hidden sm:flex bg-gray-100 px-4 py-2 rounded flex-wrap items-center gap-4">
+              <div className="flex items-center text-green-600">
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Chain Verified
               </div>
               {isMining && (
-                <div className="space-y-1 text-sm border-l border-gray-300 pl-4">
+                <div className="space-y-1 text-sm flex-grow">
                   <div className="flex items-center text-blue-600">
                     <svg className="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Mining Block #{currentMiningBlock?.index}
+                    <span className="whitespace-nowrap">Mining Block #{currentMiningBlock?.index}</span>
                     <span className="ml-2 text-xs">({Math.round(miningProgress * 100)}%)</span>
                   </div>
                 </div>

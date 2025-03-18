@@ -106,7 +106,7 @@ export default function TransactionProcessDemo() {
     <div className="space-y-6">
       {/* Transaction Creation */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
-        <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">Create Transaction</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Create Transaction</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">From Address</label>
@@ -165,7 +165,7 @@ export default function TransactionProcessDemo() {
         animate={{ opacity: 1, y: 0 }}
         className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg"
       >
-        <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">
+        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
           Network Broadcasts
           {pendingTransactions.length > 0 && (
             <span className="ml-2 text-sm font-normal text-gray-600 dark:text-gray-300">
@@ -235,7 +235,7 @@ export default function TransactionProcessDemo() {
 
       {/* Transaction History */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Transaction History</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Transaction History</h2>
         <div className="space-y-4">
           {transactionHistory.map((entry, index) => (
             <div
@@ -276,7 +276,7 @@ export default function TransactionProcessDemo() {
 
       {/* Activity Log */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Activity Log</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Activity Log</h2>
         <div className="space-y-2">
           {activityLog.map((entry, index) => (
             <div

@@ -107,6 +107,8 @@ export interface BlockchainContextType {
   setBlockReward: (reward: number) => void
   setTransactionFeeRate: (rate: number) => void
   calculateTransactionFees: (transactions: Transaction[]) => number
+  setActiveTab: (tab: 'wallets' | 'transactions' | 'mining') => void
+  activeTab: 'wallets' | 'transactions' | 'mining'
 }
 
 const BlockchainContext = createContext<BlockchainContextType | undefined>(undefined)
@@ -147,6 +149,7 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
   const [currentMiningBlock, setCurrentMiningBlock] = useState<Block | null>(null)
   const [miningProgress, setMiningProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
+  const [activeTab, setActiveTab] = useState<'wallets' | 'transactions' | 'mining'>('transactions')
   const workerRef = useRef<Worker | null>(null)
 
   const [miningStats, setMiningStats] = useState<MiningStats>({
@@ -893,7 +896,9 @@ export function BlockchainProvider({ children }: { children: ReactNode }) {
     transactionFeeRate,
     setBlockReward,
     setTransactionFeeRate,
-    calculateTransactionFees
+    calculateTransactionFees,
+    setActiveTab,
+    activeTab
   }
 
   return (

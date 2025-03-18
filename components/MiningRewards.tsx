@@ -27,11 +27,11 @@ export default function MiningRewards() {
 
   return (
     <div className="bg-white rounded-lg p-6 shadow-md">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Mining Rewards</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-gray-900">Mining Rewards</h2>
         <button
           onClick={() => isEditingRewards ? handleSaveRewards() : setIsEditingRewards(true)}
-          className={`px-4 py-2 rounded-lg ${isEditingRewards ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap`}
+          className="w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           {isEditingRewards ? 'Save Changes' : 'Edit Rewards'}
         </button>

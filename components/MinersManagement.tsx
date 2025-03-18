@@ -17,7 +17,7 @@ export default function MinersManagement() {
 
   return (
     <div className="bg-white rounded-lg p-4 md:p-6 shadow-md">
-      <h2 className="text-2xl font-bold mb-4 text-gray-900">
+      <h2 className="text-xl font-bold mb-4 text-gray-900">
         Miners <span className="text-sm font-normal text-gray-500">({miners.length} total)</span>
       </h2>
       <div className="space-y-4">
@@ -32,7 +32,7 @@ export default function MinersManagement() {
           <button
             type="submit"
             disabled={!newMinerName.trim()}
-            className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Add Miner
           </button>
