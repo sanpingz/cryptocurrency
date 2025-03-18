@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ec as EC } from 'elliptic'
 import CryptoJS from 'crypto-js'
-import { useBlockchain } from '../contexts/BlockchainContext'
-import { FaCheckCircle, FaTimesCircle, FaSpinner, FaShieldAlt, FaTrash } from 'react-icons/fa'
+import { useBlockchain, TransactionStatus } from '../contexts/BlockchainContext'
+import { FaCheckCircle, FaTimesCircle, FaSpinner, FaShieldAlt, FaTrash, FaTimes } from 'react-icons/fa'
 
 // Initialize elliptic curve instance
 const ec = new EC('secp256k1')
@@ -29,12 +29,6 @@ interface Wallet {
   }
 }
 
-interface TransactionStatus {
-  transaction: Transaction
-  status: 'created' | 'broadcast' | 'verified' | 'mined'
-  timestamp: number
-}
-
 export default function TransactionProcessDemo() {
   const {
     blockchain,
@@ -53,6 +47,7 @@ export default function TransactionProcessDemo() {
   const [toAddress, setToAddress] = useState('Bob')
   const [amount, setAmount] = useState('')
   const [processingTx, setProcessingTx] = useState<number | null>(null)
+  const [selectedTransaction, setSelectedTransaction] = useState<TransactionStatus | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -240,7 +235,8 @@ export default function TransactionProcessDemo() {
           {transactionHistory.map((entry, index) => (
             <div
               key={index}
-              className={`p-4 rounded-lg ${
+              onClick={() => setSelectedTransaction(entry)}
+              className={`p-4 rounded-lg cursor-pointer hover:shadow-lg transition-shadow ${
                 entry.status === 'failed'
                   ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
                   : entry.status === 'mined'
@@ -273,6 +269,97 @@ export default function TransactionProcessDemo() {
           ))}
         </div>
       </div>
+
+      {/* Transaction Details Modal */}
+      <AnimatePresence>
+        {selectedTransaction && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-xl max-w-2xl w-full mx-4 relative"
+            >
+              <button
+                onClick={() => setSelectedTransaction(null)}
+                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <FaTimes className="w-5 h-5" />
+              </button>
+
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Transaction Details</h3>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">From</div>
+                    <div className="font-medium text-gray-900 dark:text-white break-all">
+                      {selectedTransaction.transaction.from}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">To</div>
+                    <div className="font-medium text-gray-900 dark:text-white break-all">
+                      {selectedTransaction.transaction.to}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Amount</div>
+                  <div className="font-medium text-gray-900 dark:text-white">
+                    {selectedTransaction.transaction.amount} BTC
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Status</div>
+                  <div className={`inline-block px-2 py-1 rounded text-sm mt-1 ${
+                    selectedTransaction.status === 'failed'
+                      ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200'
+                      : selectedTransaction.status === 'mined'
+                      ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200'
+                      : 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200'
+                  }`}>
+                    {selectedTransaction.status.charAt(0).toUpperCase() + selectedTransaction.status.slice(1)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Timestamp</div>
+                  <div className="font-medium text-gray-900 dark:text-white">
+                    {new Date(selectedTransaction.timestamp).toLocaleString()}
+                  </div>
+                </div>
+
+                {selectedTransaction.transaction.signature && (
+                  <div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Signature</div>
+                    <div className="font-mono text-xs text-gray-900 dark:text-white break-all bg-gray-100 dark:bg-gray-700 p-2 rounded">
+                      {selectedTransaction.transaction.signature}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center space-x-4 mt-2">
+                  <div className={`flex items-center ${selectedTransaction.transaction.signature ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                    <FaCheckCircle className="mr-1" />
+                    Signed
+                  </div>
+                  <div className={`flex items-center ${selectedTransaction.transaction.isVerified ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                    <FaShieldAlt className="mr-1" />
+                    Verified
+                  </div>
+                  <div className={`flex items-center ${selectedTransaction.transaction.isValid ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                    <FaCheckCircle className="mr-1" />
+                    Valid
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Activity Log */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md">
