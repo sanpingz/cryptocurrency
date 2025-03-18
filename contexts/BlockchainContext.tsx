@@ -18,7 +18,7 @@ export interface Transaction {
   isValid?: boolean
 }
 
-interface Block {
+export interface Block {
   index: number
   timestamp: number
   transactions: Transaction[]

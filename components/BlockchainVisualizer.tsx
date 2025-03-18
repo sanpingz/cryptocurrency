@@ -3,21 +3,8 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useBlockchain } from '../contexts/BlockchainContext'
-import { FaTimes } from 'react-icons/fa'
-
-interface Block {
-  index: number
-  timestamp: number
-  transactions: Array<{
-    from: string
-    to: string
-    amount: number
-  }>
-  data?: string
-  previousHash: string
-  hash: string
-  nonce: number
-}
+import type { Block, Transaction } from '../contexts/BlockchainContext'
+import { FaTimes, FaCheckCircle, FaShieldAlt } from 'react-icons/fa'
 
 export default function BlockchainVisualizer() {
   const {
@@ -31,6 +18,10 @@ export default function BlockchainVisualizer() {
   } = useBlockchain()
 
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
+
+  const handleTransactionClick = (tx: Transaction, index: number): void => {
+    // ... existing code ...
+  }
 
   return (
     <div className="space-y-6">
@@ -184,24 +175,18 @@ export default function BlockchainVisualizer() {
               <h3 id="modal-title" className="text-xl font-bold text-gray-900 mb-6">Block Details</h3>
 
               <div className="space-y-4">
-                <div>
-                  <div className="text-sm text-gray-500">Block Number</div>
-                  <div className="font-medium text-gray-900">
-                    #{selectedBlock.index}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-gray-500">Block Number</div>
+                    <div className="font-medium text-gray-900">
+                      #{selectedBlock.index}
+                    </div>
                   </div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-gray-500">Timestamp</div>
-                  <div className="font-medium text-gray-900">
-                    {new Date(selectedBlock.timestamp).toLocaleString()}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-gray-500">Nonce</div>
-                  <div className="font-medium text-gray-900">
-                    {selectedBlock.nonce}
+                  <div>
+                    <div className="text-sm text-gray-500">Timestamp</div>
+                    <div className="font-medium text-gray-900">
+                      {new Date(selectedBlock.timestamp).toLocaleString()}
+                    </div>
                   </div>
                 </div>
 
@@ -219,29 +204,41 @@ export default function BlockchainVisualizer() {
                   </div>
                 </div>
 
-                {selectedBlock.data && (
-                  <div>
-                    <div className="text-sm text-gray-500">Block Data</div>
-                    <div className="font-medium text-gray-900">
-                      {selectedBlock.data}
-                    </div>
+                <div>
+                  <div className="text-sm text-gray-500">Nonce</div>
+                  <div className="font-medium text-gray-900">
+                    {selectedBlock.nonce}
                   </div>
-                )}
+                </div>
 
                 <div>
-                  <div className="text-sm text-gray-500 mb-2">Transactions</div>
-                  <div className="bg-gray-100 rounded-lg p-4">
+                  <div className="text-sm text-gray-500">Transactions</div>
+                  <div className="mt-2 space-y-2">
                     {selectedBlock.transactions.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {selectedBlock.transactions.map((tx, index) => (
-                          <div key={index} className="p-3 bg-white rounded-lg">
+                          <div key={index} className="p-3 bg-gray-50 rounded-lg">
                             <div className="flex items-center space-x-2 mb-1">
                               <span className="font-medium text-gray-900">From: {tx.from}</span>
                               <span className="text-gray-600">→</span>
                               <span className="font-medium text-gray-900">To: {tx.to}</span>
                             </div>
                             <div className="text-sm text-gray-800">
-                              Amount: {tx.amount} coins
+                              Amount: {tx.amount} BTC
+                            </div>
+                            <div className="flex items-center space-x-4 mt-2 text-sm">
+                              <div className={`flex items-center ${tx.signature ? 'text-green-600' : 'text-gray-500'}`}>
+                                <FaCheckCircle className="mr-1" />
+                                Signed
+                              </div>
+                              <div className={`flex items-center ${tx.isVerified ? 'text-green-600' : 'text-gray-500'}`}>
+                                <FaShieldAlt className="mr-1" />
+                                Verified
+                              </div>
+                              <div className={`flex items-center ${tx.isValid ? 'text-green-600' : 'text-gray-500'}`}>
+                                <FaCheckCircle className="mr-1" />
+                                Valid
+                              </div>
                             </div>
                           </div>
                         ))}
